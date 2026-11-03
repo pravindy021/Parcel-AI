@@ -41,14 +41,6 @@ app = FastAPI(
 
 origins = [origin.strip() for origin in settings.allowed_origins.split(",") if origin.strip()]
 app.add_middleware(UploadRequestLimitMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token", "X-Organization-ID"],
-)
-
 app.include_router(health_router)
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(config_router, prefix=settings.api_prefix)
@@ -65,3 +57,6 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
         extra={"http_method": request.method, "http_path": request.url.path},
     )
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+application = CORSMiddleware(app=app, allow_origins=origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Organization-ID'])
+
