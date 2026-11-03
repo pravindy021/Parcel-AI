@@ -7,3 +7,10 @@ __pycache__/
 .pytest_cache/
 .coverage
 .DS_Store
+data/uploads/*
+!data/uploads/.gitkeep
+models/*
+!models/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
