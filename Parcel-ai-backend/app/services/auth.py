@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import httpx
 import secrets
-import smtplib
-import ssl
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
-
 from fastapi import HTTPException, Request, Response
 from sqlalchemy.orm import Session
-
 from app.core.config import settings
 from app.db.models import (
     AuthSession,
@@ -134,21 +130,43 @@ def create_invitation_token() -> tuple[str, str]:
 
 
 def deliver_email(recipient: str, subject: str, body: str) -> None:
-    if not (settings.smtp_host and settings.smtp_from_email):
-        raise RuntimeError("Email delivery is not configured")
-    message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = settings.smtp_from_email
-    message["To"] = recipient
-    message.set_content(body)
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-        smtp.ehlo()
-        if settings.smtp_starttls:
-            smtp.starttls(context=ssl.create_default_context())
-            smtp.ehlo()
-        if settings.smtp_username:
-            smtp.login(settings.smtp_username, settings.smtp_password)
-        smtp.send_message(message)
+    """
+    Send an email using the Resend API.
+    """
+
+    if not settings.resend_api_key or not settings.resend_from_email:
+        raise RuntimeError("Resend email delivery is not configured")
+
+    payload = {
+        "from": settings.resend_from_email,
+        "to": [recipient],
+        "subject": subject,
+        "text": body,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {settings.resend_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = httpx.post(
+            "https://api.resend.com/emails",
+            json=payload,
+            headers=headers,
+            timeout=20.0,
+        )
+
+        if not response.is_success:
+            raise RuntimeError(
+                f"Resend API returned HTTP {response.status_code}: "
+                f"{response.text[:500]}"
+            )
+
+    except httpx.HTTPError as exc:
+        raise RuntimeError(
+            f"Resend email request failed: {type(exc).__name__}"
+        ) from exc
 
 
 def email_action_link(purpose: str, token: str) -> str:
